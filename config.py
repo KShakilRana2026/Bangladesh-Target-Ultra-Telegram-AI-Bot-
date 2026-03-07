@@ -1,0 +1,13 @@
+import os
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+DEEPSEEK_API = os.getenv("DEEPSEEK_API")
+
+ADMIN_ID = 6919025708
+
+GROUP_USERNAME = "@dark_princes12"
+CHANNEL_USERNAME = "@myfirstchannel12"
+
+FREE_LIMIT = 10
+
+PAYMENT_NUMBER = "01309924182"
