@@ -11,11 +11,21 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
-from config import *
+
+# ================= CONFIG ================= #
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+DEEPSEEK_API = os.getenv("DEEPSEEK_API")
+
+ADMIN_ID = 6919025708
+GROUP_USERNAME = "@dark_princes12"
+CHANNEL_USERNAME = "@myfirstchannel12"
+FREE_LIMIT = 10
+PAYMENT_NUMBER = "01309924182"
 
 DB_FILE = "database.json"
 
-# ---------------- DATABASE ---------------- #
+# ================= DATABASE ================= #
 
 def load_db():
     try:
@@ -28,7 +38,7 @@ def save_db(data):
     with open(DB_FILE, "w") as f:
         json.dump(data, f)
 
-# ---------------- MEMBERSHIP CHECK ---------------- #
+# ================= MEMBERSHIP CHECK ================= #
 
 async def check_membership(user_id, context):
     try:
@@ -60,7 +70,7 @@ async def verify_callback(update, context):
     else:
         await query.answer("❌ Still not joined!", show_alert=True)
 
-# ---------------- COMMANDS ---------------- #
+# ================= COMMANDS ================= #
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -99,11 +109,11 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "expire": expire.isoformat(),
         "used": 0
     }
-    save_db(db)
 
+    save_db(db)
     await update.message.reply_text("✅ User Approved!")
 
-# ---------------- CHAT ---------------- #
+# ================= CHAT ================= #
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -112,13 +122,13 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in db:
         db[user_id] = {"premium": False, "used": 0}
 
-    # Check expiry
+    # Expiry check
     if db[user_id]["premium"]:
         expire = datetime.datetime.fromisoformat(db[user_id]["expire"])
         if datetime.datetime.now() > expire:
             db[user_id]["premium"] = False
 
-    # Verification
+    # Free user verification
     if not db[user_id]["premium"]:
         verified = await check_membership(update.effective_user.id, context)
         if not verified:
@@ -129,7 +139,7 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Free limit finished. Use /buy")
             return
 
-    # DeepSeek API Request
+    # DeepSeek API call
     headers = {
         "Authorization": f"Bearer {DEEPSEEK_API}",
         "Content-Type": "application/json"
@@ -157,7 +167,9 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(reply)
 
-# ---------------- MAIN (WEBHOOK MODE) ---------------- #
+# ================= MAIN ================= #
+
+print("🔥 BD Ultra AI Bot Running (Polling Mode)...")
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -167,12 +179,4 @@ app.add_handler(CommandHandler("approve", approve))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
 app.add_handler(CallbackQueryHandler(verify_callback, pattern="verify"))
 
-PORT = int(os.environ.get("PORT", 10000))
-
-print("🔥 BD Ultra AI Bot Running (Webhook Mode)...")
-
-app.run_webhook(
-    listen="0.0.0.0",
-    port=PORT,
-    webhook_url="https://bangladesh-target-ultra-telegram-ai-bot-1.onrender.com/" + BOT_TOKEN
-)
+app.run_polling()
