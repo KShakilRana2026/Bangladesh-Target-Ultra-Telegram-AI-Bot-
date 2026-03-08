@@ -1,3 +1,4 @@
+import os
 import json
 import requests
 import datetime
@@ -55,7 +56,7 @@ async def verify_callback(update, context):
     await query.answer()
     ok = await check_membership(query.from_user.id, context)
     if ok:
-        await query.edit_message_text("✅ Verification Successful!")
+        await query.edit_message_text("✅ Verification Successful! Now send your message.")
     else:
         await query.answer("❌ Still not joined!", show_alert=True)
 
@@ -81,6 +82,10 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
+        return
+
+    if len(context.args) < 2:
+        await update.message.reply_text("Usage: /approve user_id days")
         return
 
     user_id = context.args[0]
@@ -124,7 +129,7 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Free limit finished. Use /buy")
             return
 
-    # DeepSeek API
+    # DeepSeek API Request
     headers = {
         "Authorization": f"Bearer {DEEPSEEK_API}",
         "Content-Type": "application/json"
@@ -135,18 +140,24 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "messages": [{"role": "user", "content": update.message.text}]
     }
 
-    r = requests.post("https://api.deepseek.com/chat/completions",
-                      headers=headers, json=data)
-
-    result = r.json()
-    reply = result["choices"][0]["message"]["content"]
+    try:
+        r = requests.post(
+            "https://api.deepseek.com/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=60
+        )
+        result = r.json()
+        reply = result["choices"][0]["message"]["content"]
+    except:
+        reply = "⚠️ AI Server Error. Try again later."
 
     db[user_id]["used"] += 1
     save_db(db)
 
     await update.message.reply_text(reply)
 
-# ---------------- MAIN ---------------- #
+# ---------------- MAIN (WEBHOOK MODE) ---------------- #
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -156,5 +167,12 @@ app.add_handler(CommandHandler("approve", approve))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
 app.add_handler(CallbackQueryHandler(verify_callback, pattern="verify"))
 
-print("🔥 BD Ultra AI Bot Running...")
-app.run_polling()
+PORT = int(os.environ.get("PORT", 10000))
+
+print("🔥 BD Ultra AI Bot Running (Webhook Mode)...")
+
+app.run_webhook(
+    listen="0.0.0.0",
+    port=PORT,
+    webhook_url="https://bangladesh-target-ultra-telegram-ai-bot-1.onrender.com/" + BOT_TOKEN
+)
