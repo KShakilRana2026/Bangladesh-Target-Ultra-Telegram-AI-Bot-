@@ -12,7 +12,7 @@ from telegram.ext import (
     filters
 )
 
-# ================= CONFIG ================= #
+# ================== CONFIG ================== #
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DEEPSEEK_API = os.getenv("DEEPSEEK_API")
@@ -25,7 +25,7 @@ PAYMENT_NUMBER = "01309924182"
 
 DB_FILE = "database.json"
 
-# ================= DATABASE ================= #
+# ================== DATABASE ================== #
 
 def load_db():
     try:
@@ -38,13 +38,12 @@ def save_db(data):
     with open(DB_FILE, "w") as f:
         json.dump(data, f)
 
-# ================= MEMBERSHIP CHECK ================= #
+# ================== MEMBERSHIP CHECK ================== #
 
 async def check_membership(user_id, context):
     try:
         g = await context.bot.get_chat_member(GROUP_USERNAME, user_id)
         c = await context.bot.get_chat_member(CHANNEL_USERNAME, user_id)
-
         valid = ["member", "administrator", "creator"]
         return g.status in valid and c.status in valid
     except:
@@ -56,6 +55,7 @@ async def force_subscribe(update, context):
         [InlineKeyboardButton("📢 Join Channel", url="https://t.me/myfirstchannel12")],
         [InlineKeyboardButton("✅ Verify", callback_data="verify")]
     ]
+
     await update.message.reply_text(
         "🚫 You must join our Group & Channel first!",
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -70,7 +70,7 @@ async def verify_callback(update, context):
     else:
         await query.answer("❌ Still not joined!", show_alert=True)
 
-# ================= COMMANDS ================= #
+# ================== COMMANDS ================== #
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -113,7 +113,7 @@ async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_db(db)
     await update.message.reply_text("✅ User Approved!")
 
-# ================= CHAT ================= #
+# ================== CHAT SYSTEM ================== #
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -128,7 +128,7 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if datetime.datetime.now() > expire:
             db[user_id]["premium"] = False
 
-    # Free user verification
+    # Free verification
     if not db[user_id]["premium"]:
         verified = await check_membership(update.effective_user.id, context)
         if not verified:
@@ -139,7 +139,8 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Free limit finished. Use /buy")
             return
 
-    # DeepSeek API call
+    # ================= AI CALL ================= #
+
     headers = {
         "Authorization": f"Bearer {DEEPSEEK_API}",
         "Content-Type": "application/json"
@@ -147,7 +148,9 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     data = {
         "model": "deepseek-chat",
-        "messages": [{"role": "user", "content": update.message.text}]
+        "messages": [
+            {"role": "user", "content": update.message.text}
+        ]
     }
 
     try:
@@ -157,17 +160,24 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
             json=data,
             timeout=60
         )
-        result = r.json()
-        reply = result["choices"][0]["message"]["content"]
-    except:
-        reply = "⚠️ AI Server Error. Try again later."
+
+        if r.status_code == 200:
+            result = r.json()
+            reply = result["choices"][0]["message"]["content"]
+        elif r.status_code == 401:
+            reply = "❌ Invalid DeepSeek API Key."
+        else:
+            reply = f"⚠️ API Error ({r.status_code})"
+
+    except Exception as e:
+        reply = "⚠️ AI Connection Failed."
 
     db[user_id]["used"] += 1
     save_db(db)
 
     await update.message.reply_text(reply)
 
-# ================= MAIN ================= #
+# ================== MAIN ================== #
 
 print("🔥 BD Ultra AI Bot Running (Polling Mode)...")
 
